@@ -1,0 +1,24 @@
+generate private key
+   openssl genrsa -out private.key
+
+generate public key
+  openssl rsa -in private.key -pubout -out public.key
+
+create text file
+   echo "hello world this is a demo" > sometekst.txt
+
+encrypt file with public key
+   openssl rsautl -encrypt -pubin -inkey public.key -in sometekst.txt -out sometekst.cipher
+
+decrypt file with private key
+   openssl rsautl -decrypt -inkey private.key -in sometekst.cipher
+
+
+create fingerprint
+   openssl dgst -sign private.key -sha256 sometekst.txt >sometekst.signature
+
+
+check fingerprint
+   openssl dgst -sha256 -verify public.key -signature sometekst.signature sometekst.txt
+
+# now change the contents of sometekst.txt and do the same checks...see what happens

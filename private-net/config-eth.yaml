@@ -1,0 +1,112 @@
+---
+- hosts: eth-cluster
+  gather_facts: True
+  vars:
+  remote_user: vsts
+  tasks:
+  - name: Setting facts
+    set_fact:
+      gethdir: '/opt/ethereum/demo-eko'
+      gethsolidedir: '/opt/ethereum/solidity-ide'
+      gethclientdir: '/opt/ethereum/demo-eko-client'
+      gethnodeport: 30303      
+      gethpassword: 'helloworld123'
+      user: 'vsts'
+  - name: Kill existing geth node
+    shell: "(kill $(ps -ef | grep -i geth | grep networkid | awk '{print $2}') >/dev/null 2>&1 &)"
+    async: 10
+    poll: 0
+  - name: Making sure that geth node is killed
+    wait_for:
+      port: "{{gethnodeport}}"
+      state: drained
+  - file:
+      path: "{{gethdir}}"
+      owner: "{{user}}"
+      group: "{{user}}"
+      state: directory
+      mode: 0755
+    become: true
+    become_user: root
+  - file:
+      path: "{{gethclientdir}}"
+      owner: "{{user}}"
+      group: "{{user}}"
+      state: directory
+      mode: 0755
+    become: true
+    become_user: root
+  - file:
+      path: "{{gethsolidedir}}"
+      owner: "{{user}}"
+      group: "{{user}}"
+      state: directory
+      mode: 0755
+    become: true
+    become_user: root
+  - name: Extract Solidity Eth Ide
+    unarchive:
+      src: solidity-ide/sol.tar.gz
+      dest: "{{gethsolidedir}}"
+  - copy:
+      src: ethereum/genesis-block.json
+      dest: "{{gethdir}}"
+  - name: Extract Netstat Eth Client
+    unarchive:
+      src: ethereum-client/eth-net-intelligence-api.tar.gz
+      dest: "{{gethclientdir}}"
+  - name: Install Go
+    apt: name=golang state=installed
+    become: true
+    become_user: root
+  - name: Install npm
+    apt: name=npm state=installed
+    become: true
+    become_user: root
+  - apt_repository:
+      repo: 'ppa:ethereum/ethereum'
+    become: true
+    become_user: root
+  - name: Install Ethereum
+    apt: name=ethereum state=installed
+    become: true
+    become_user: root
+  - name: Initialize private ETH network
+    shell: geth --datadir "{{gethdir}}" init "{{gethdir}}"/genesis-block.json
+  - name: install netstats client
+    shell: cd  "{{gethclientdir}}"; npm install; npm install -g pm2
+    become: true
+    become_user: root
+  - name: Start geth node
+    shell: "(geth --datadir \"{{gethdir}}\" --networkid \"999\"  --rpc  --rpcport \"8545\"  --rpcaddr \"0.0.0.0\" --rpccorsdomain \"*\" --rpcapi \"eth,net,web3,debug\"  >/dev/null 2>&1 &)" 
+    async: 10
+    poll: 0
+  - name: Wait for geth node to come up
+    wait_for:
+      port: "{{gethnodeport}}"
+      delay: 10
+  - name: nodejs bugfix
+    shell: "ln -s /usr/bin/nodejs /usr/bin/node"
+    ignore_errors: yes
+    become: true
+    become_user: root
+  - name: Generate eth Account
+    shell: "echo 'personal.newAccount(\"{{gethpassword}}\")' | geth attach ipc:\"{{gethdir}}\"/geth.ipc"
+  - name: Starting miner 
+    shell: "(echo 'miner.start(3)' | geth attach ipc:\"{{gethdir}}\"/geth.ipc >/dev/null 2>&1 &)"
+    async: 10
+    poll: 0
+  - name: Generate enode data
+    shell: "(echo admin.nodeInfo.enode | geth attach ipc:\"{{gethdir}}\"/geth.ipc | grep enode >/tmp/enode)"
+  - name: Get enode value and assign to var
+    shell: "(cat /tmp/enode)"
+    register: enode
+  # STARTING ETH NETSTAT CLIENT
+  - name: Start eth net stat client
+    shell: cd "{{gethclientdir}}"/eth-net-intelligence-api; pm2 start /tmp/pm2-template*.json
+  - file: path=/tmp/enodes state=touch
+  - name: Generating tmp file
+    blockinfile:
+      path: /tmp/enodes
+      block: |
+        {{ enode.stdout }}

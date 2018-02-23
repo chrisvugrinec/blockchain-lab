@@ -30,6 +30,10 @@ contract SimpleLottery {
 
     uint[] private unsoldLotteryTickets;
     LotteryClient[] private soldLotteryNumbers;
+    
+    function showWinners() public constant returns(WinningLotteryClient[]){
+        return winners;
+    }
 
 //    function SimpleLottery(uint _nrOfTickets, uint _priceMoney)  public {
     function SimpleLottery(uint _nrOfTickets)  public payable{

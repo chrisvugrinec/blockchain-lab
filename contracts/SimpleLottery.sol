@@ -25,6 +25,12 @@ contract SimpleLottery {
         _;
     }
 
+    modifier ticketsAvailable() {
+        require(ticketsSold < nrOfTickets);
+        _;
+    }
+
+
     struct LotteryClient {
         string name;
         uint lotteryNumber;
@@ -61,16 +67,16 @@ contract SimpleLottery {
     }
 
 
-    function buyTicket(string _name) public payable{
+    function buyTicket(string _name) public ticketsAvailable payable{
         
         //  Ticket price is 1 ether
-        if(msg.value != 1 ether || ticketsSold < nrOfTickets){
+        if(msg.value != 1 ether){
             revert();
         }else{
-        
-            ticketsSold += 1;
+    
             uint ticketNumber = unsoldLotteryTickets[ticketsSold];
             delete unsoldLotteryTickets[ticketsSold];
+            ticketsSold += 1;
             
             //test = block.blockhash(block.number);
             soldLotteryNumbers.push( LotteryClient(_name, ticketNumber,msg.sender));

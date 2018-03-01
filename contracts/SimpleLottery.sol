@@ -2,7 +2,7 @@ pragma solidity ^0.4.0;
 
 /*
     Title: SimpleLottery
-    Author: Chris Vugrienc
+    Author: Chris Vugrinec
     Description: Simple demo (not for production) showing you how to create a simple smart contract
                  with basic transactions, like deducting Ether from your wallet and adding that to the (smart) contract.
                  In the end you can always win your eth back of course...only test this on one of the test networks

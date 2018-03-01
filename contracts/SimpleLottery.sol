@@ -1,12 +1,14 @@
 pragma solidity ^0.4.0;
 
-contract SimpleLottery {
+/*
+    Title: SimpleLottery
+    Author: Chris Vugrienc
+    Description: Simple demo (not for production) showing you how to create a simple smart contract
+                 with basic transactions, like deducting Ether from your wallet and adding that to the (smart) contract.
+                 In the end you can always win your eth back of course...only test this on one of the test networks
 
-    /*
-        This Lottery example is not linked to a wallet
-        buy a ticket with your name and a number is drawn
-        no wallets or whatsoever are used here
-    */
+*/
+contract SimpleLottery {
 
     uint256 nrOfTickets;
     uint ticketsSold;
@@ -15,6 +17,13 @@ contract SimpleLottery {
     uint timesDrawn;
     WinningLotteryClient[] winners;
     mapping (address => uint) balances;
+
+
+    modifier noWinnerDrawnYet() {
+        require(soldLotteryNumbers.length == nrOfTickets);
+        require(!lotteryWon);
+        _;
+    }
 
     struct LotteryClient {
         string name;
@@ -35,7 +44,6 @@ contract SimpleLottery {
         return winners;
     }
 
-//    function SimpleLottery(uint _nrOfTickets, uint _priceMoney)  public {
     function SimpleLottery(uint _nrOfTickets)  public payable{
         nrOfTickets = _nrOfTickets;
         ticketsSold = 0;
@@ -54,16 +62,15 @@ contract SimpleLottery {
 
 
     function buyTicket(string _name) public payable{
+        
         //  Ticket price is 1 ether
-        if(msg.value != 1 ether){
+        if(msg.value != 1 ether || ticketsSold < nrOfTickets){
             revert();
-        }
-        // Dont sell tickets if you have none left :)
-        if(ticketsSold < nrOfTickets){
-
+        }else{
+        
+            ticketsSold += 1;
             uint ticketNumber = unsoldLotteryTickets[ticketsSold];
             delete unsoldLotteryTickets[ticketsSold];
-            ticketsSold += 1;
             
             //test = block.blockhash(block.number);
             soldLotteryNumbers.push( LotteryClient(_name, ticketNumber,msg.sender));
@@ -72,8 +79,6 @@ contract SimpleLottery {
             // Add money to pricemoney
             balances[this] += msg.value;
 
-        }else{
-            revert();
         }
     }
     
@@ -81,61 +86,51 @@ contract SimpleLottery {
     }
 
 
-    function getWinner() public payable{
-        //  Only draw when all tickets are sold and no winner yet
-        //  uint ticketsLeft = nrOfTickets-ticketsSold;
-        if( !lotteryWon  &&
-            (soldLotteryNumbers.length == nrOfTickets)
-        ){
+    //  Only draw when all tickets are sold and no winner yet ..hence the required modifier
+    function getWinner() public noWinnerDrawnYet payable{
 
-            // Draw lucky winner:
-            uint winningNumber = randomLotteryNumber(block.number);
 
-            //  Iterate over all users until winningNumber is
-            //  owned by 1 or more users
-            for(uint i=0; i<soldLotteryNumbers.length; i++){
+        // Draw lucky winner:
+        uint winningNumber = randomLotteryNumber(block.number);
 
-                //  If user has winning number add to tmpArray of winningNames
-                //  Contratz
-                if(soldLotteryNumbers[i].lotteryNumber == winningNumber){
+        //  Iterate over all users until winningNumber is
+        //  owned by 1 or more users
+        for(uint i=0; i<soldLotteryNumbers.length; i++){
 
-                    logWinMessage("we have a winner for this ticketNumber ",winningNumber, " the Eth addres is: ", soldLotteryNumbers[i].clientAddress );
+            //  If user has winning number add to tmpArray of winningNames
+            //  Contratz
+            if(soldLotteryNumbers[i].lotteryNumber == winningNumber){
 
-                    winners.push(WinningLotteryClient(soldLotteryNumbers[i].name, soldLotteryNumbers[i].lotteryNumber,showContractEth()));
-                    lotteryWon=true;
-                }
+                logWinMessage("we have a winner for this ticketNumber ",winningNumber, " the Eth addres is: ", soldLotteryNumbers[i].clientAddress );
+
+                winners.push(WinningLotteryClient(soldLotteryNumbers[i].name, soldLotteryNumbers[i].lotteryNumber,showContractEth()));
+                lotteryWon=true;
             }
-            if( lotteryWon ){
-                //  Divide price and change state
-                uint nrOfWinners = winners.length;
-                uint price = showContractEth()/nrOfWinners;
-                for(uint j=0; j<nrOfWinners; j++){
-                    logWinnerMessage(winners[j].name," wins pricemoney ",price, " with ticketnr: ", winners[j].ticketNr);
-                    balances[this] -= price;
-                    balances[soldLotteryNumbers[j].clientAddress] += price;
-                    //  Sending the actual ether to the wallets
-                    soldLotteryNumbers[j].clientAddress.transfer(price);
-                    
-                }
-            }else{
-                timesDrawn++;
-                logNobodyWinsMessage("Redraw needed: nobody has this winning ticketnr, :", winningNumber, " times drawn: ",timesDrawn);
+        }
+        if( lotteryWon ){
+            //  Divide price and change state
+            uint nrOfWinners = winners.length;
+            uint price = showContractEth()/nrOfWinners;
+            for(uint j=0; j<nrOfWinners; j++){
+                logWinnerMessage(winners[j].name," wins pricemoney ",price, " with ticketnr: ", winners[j].ticketNr);
+                balances[this] -= price;
+                balances[soldLotteryNumbers[j].clientAddress] += price;
+                //  Sending the actual ether to the wallets
+                soldLotteryNumbers[j].clientAddress.transfer(price);
             }
+        }else{
+            timesDrawn++;
+            logNobodyWinsMessage("Redraw needed: nobody has this winning ticketnr, :", winningNumber, " times drawn: ",timesDrawn);
         }
     }
     
-
-
+    //  Events : message with calling interface
     event logTicketBuy(string message, string message2, uint ticketNr);
     event logNobodyWinsMessage(string message, uint ticketNr,string message2, uint timesDrawnNr);
     event logWinMessage(string message, uint ticketNr, string message2, address addr);
     event logWinnerMessage(string message, string submessage, uint price, string submessage2, uint ticketNr);
 
-    // note: solidity accessor types:
-    // public - all
-    // private - only this contract
-    // internal - only this contract and contracts deriving from it
-    // external - Cannot be accessed internally, only externally
+
     function randomLotteryNumber(uint seed) private constant returns (uint randomNumber) {
             return(uint(keccak256(block.blockhash(block.number-1), seed ))%10);
     }
